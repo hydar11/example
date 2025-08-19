@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Market Stats (UTC)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: oklch(14.1% .005 285.823);
+            --fg: oklch(98.5% 0 0);
+            --card: oklch(21% .006 285.885);
+            --primary: oklch(85% 0.15 290);
+            --primary-fg: oklch(14.1% .005 285.823);
+            --muted: oklch(27.4% .006 286.033);
+            --muted-fg: oklch(70.5% .015 286.067);
+            --border: oklch(100% 0 0/.1);
+            --success: oklch(72.3% .219 149.579);
+            --destructive: oklch(70.4% .191 22.216);
+            --warning: #f59e0b;
+            
+            /* ✨ **NEU**: Farbe auf einen helleren, klareren Rot-Orange-Ton eingestellt */
+            --warning-alt: oklch(69% 0.225 29);
+            
+            --success-transparent: oklch(72.3% .219 149.579 / 0.4);
+            --warning-alt-transparent: oklch(69% 0.225 29 / 0.5);
+            --r: 0.4rem; --s: 0.25rem;
+        }
+        body { font-family: 'Silkscreen', 'Courier New', monospace; background: var(--bg); color: var(--fg); overflow-x: hidden; font-weight: 400; font-size: 12px; height: 100vh; overflow-y: hidden; }
+        .container { max-width: 1800px; margin: 0 auto; padding: var(--s); height: 100vh; display: flex; flex-direction: column; }
+        .header { background: linear-gradient(135deg, var(--card), var(--bg)); padding: var(--s); border-radius: var(--r); margin-bottom: var(--s); border: 1px solid var(--border); flex-shrink: 0; }
+        .header h1 { font-size: 1.1rem; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--success)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .main-layout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s); align-items: start; flex: 1; overflow: hidden; }
+        
+        .section-title { font-size: 0.6rem; color: var(--muted-fg); margin-bottom: var(--s); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        
+        .stats-section { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s); margin-bottom: 0; }
+        .stat-card { background: linear-gradient(145deg, var(--card), var(--bg)); padding: calc(var(--s) * 0.75); border-radius: var(--r); border: 1px solid var(--border); }
+        .stat-label { font-size: 0.45rem; color: var(--muted-fg); margin-bottom: calc(var(--s) * 0.1); text-transform: uppercase; }
+        .stat-value-container { display: flex; justify-content: space-between; align-items: baseline; }
+        .stat-value { font-size: 0.9rem; font-weight: 700; color: var(--fg); line-height: 1.1; }
+        .stat-unit { font-size: 0.5rem; color: var(--primary); }
+        .sub-value { font-size: 0.5rem; color: var(--muted-fg); font-weight: 400; }
+        
+        .panel { background: linear-gradient(145deg, var(--card), var(--bg)); border-radius: var(--r); padding: var(--s); border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .panel-stack > .panel:not(:first-child) { margin-top: var(--s); }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s); border-bottom: 1px solid var(--border); padding-bottom: var(--s); }
+        .panel-title { font-size: 0.8rem; font-weight: 700; }
+        
+        .chart-container { position: relative; height: 200px; width: 100%; }
+        .loading-overlay { text-align: center; padding: 2rem; font-size: 0.8rem; color: var(--muted-fg); }
+
+        .chart-controls { display: flex; gap: var(--s); align-items: center; }
+        .chart-type-btn { padding: var(--s) calc(var(--s) * 1.5); background: var(--bg); border: 1px solid var(--border); border-radius: calc(var(--r) - 2px); font-size: 0.55rem; cursor: pointer; color: var(--muted-fg); font-weight: 700; }
+        .chart-type-btn.active { background: var(--muted); color: var(--fg); }
+        
+        .table-container { height: 305px; overflow-y: auto; }
+        .latest-trades-table { width: 100%; border-collapse: collapse; font-size: 0.65rem; }
+        .latest-trades-table th { text-align: left; padding: var(--s); font-size: 0.55rem; color: var(--muted-fg); border-bottom: 1px solid var(--border); font-weight: 700; text-transform: uppercase; }
+        .latest-trades-table td { padding: calc(var(--s) * 1.2) var(--s); font-size: 0.65rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .trade-item-icon { width: calc(var(--s) * 5); height: calc(var(--s) * 5); border-radius: 2px; margin-right: var(--s); vertical-align: middle; }
+        .trade-item-name { display: inline-block; vertical-align: middle; font-size: 0.6rem; }
+        .trade-buyer a, .trade-tx a { color: var(--primary); text-decoration: none; }
+        @keyframes highlight-fade { 0% { background-color: rgba(251, 191, 36, 0.3); } 100% { background-color: transparent; } }
+        .new-trade { animation: highlight-fade 1.5s ease-out; }
+
+        .panel-stack { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+        .left-column, .right-column { height: 100%; overflow-y: auto; }
+        @media (max-width: 1400px) { .main-layout { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .stats-section { grid-template-columns: 1fr; } }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: var(--r); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>Global Market Statistics (UTC)</h1></div>
+
+        <div class="main-layout">
+            <div class="left-column panel-stack">
+                <div class="panel">
+                    <div class="section-title">24-Hour Rolling Stats</div>
+                    <div class="stats-section">
+                        <div class="stat-card"><div class="stat-label">24H Volume</div><div class="stat-value-container"><span class="stat-value" id="totalVolume24hEth">-</span><span class="sub-value" id="totalVolume24hUsd"></span></div></div>
+                        <div class="stat-card"><div class="stat-label">24H Trades</div><div class="stat-value" id="totalTrades24h">-</div></div>
+                        <div class="stat-card"><div class="stat-label">24H Items Sold</div><div class="stat-value" id="totalItemsSold24h">-</div></div>
+                        <div class="stat-card"><div class="stat-label">24H Unique Buyers</div><div class="stat-value" id="uniqueBuyers24h">-</div></div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><div class="panel-title">24H Performance (UTC)</div></div>
+                    <div class="chart-container">
+                        <div class="loading-overlay" id="loadingIndicator24h">Loading...</div><canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><div class="panel-title">Daily Performance</div></div>
+                    <div class="chart-container">
+                        <div class="loading-overlay" id="loadingIndicatorDaily">Loading...</div><canvas id="dailyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column panel-stack">
+                <div class="panel">
+                    <div class="section-title">All-Time Stats</div>
+                    <div class="stats-section">
+                        <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-value-container"><span class="stat-value" id="allTimeVolumeEth">-</span><span class="sub-value" id="allTimeVolumeUsd"></span></div></div>
+                        <div class="stat-card"><div class="stat-label">Total Trades</div><div class="stat-value" id="allTimeTrades">-</div></div>
+                        <div class="stat-card"><div class="stat-label">Total Items Sold</div><div class="stat-value" id="allTimeItemsSold">-</div></div>
+                        <div class="stat-card"><div class="stat-label">Total Unique Buyers</div><div class="stat-value" id="allTimeUniqueBuyers">-</div></div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><div class="panel-title">All-Time Growth (Cumulative)</div></div>
+                    <div class="chart-container">
+                        <div class="loading-overlay" id="loadingIndicatorLifetime">Loading...</div><canvas id="lifetimeChart"></canvas>
+                    </div>
+                </div>
+                 <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title" id="avgPriceChartTitle">Cumulative Average Prices</div>
+                        <div class="chart-controls" id="avgPriceModeSwitcher">
+                            <button class="chart-type-btn active" data-mode="cumulative">Cumulative</button>
+                            <button class="chart-type-btn" data-mode="daily">Daily</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="loading-overlay" id="loadingIndicatorAvgPrice">Loading...</div><canvas id="avgPriceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+    <script>
+        const SUBGRAPH_URL = "https://api.giga-companion.online/subgraphs/name/giga_v1";
+        const CHART_COLORS = { fg: getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(), border: getComputedStyle(document.documentElement).getPropertyValue('--border').trim(), primary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(), success: getComputedStyle(document.documentElement).getPropertyValue('--success').trim(), warning: getComputedStyle(document.documentElement).getPropertyValue('--warning').trim(), warningAlt: getComputedStyle(document.documentElement).getPropertyValue('--warning-alt').trim(), successTransparent: getComputedStyle(document.documentElement).getPropertyValue('--success-transparent').trim(), warningAltTransparent: getComputedStyle(document.documentElement).getPropertyValue('--warning-alt-transparent').trim() };
+
+        let hourlyChart, lifetimeChart, dailyChart, avgPriceChart;
+        let itemDetails = {};
+        
+        let avgPriceMode = 'cumulative';
+        
+        let historicalLabels;
+        let dailyAvgItemPriceData, cumulativeAvgItemPriceData;
+        let dailyAvgTradePriceData, cumulativeAvgTradePriceData;
+        
+        let ethToUsdRate = null;
+        let lastKnownTradeIds = new Set();
+        let authoritativeAllTimeTrades = 0;
+        let authoritativeAllTimeItemsSold = 0n;
+        const pad = (num) => num.toString().padStart(2, '0');
+
+        Chart.defaults.font.family = "'Silkscreen', 'Courier New', monospace";
+        Chart.defaults.font.size = 10;
+        Chart.defaults.color = CHART_COLORS.fg;
+
+        async function querySubgraph(query) { try { const response = await fetch(SUBGRAPH_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) }); const { data, errors } = await response.json(); if (errors) { console.error('GraphQL Errors:', errors); return null; } return data; } catch (error) { console.error('Error querying Subgraph:', error); return null; } }
+        async function fetchAllEntities(entity, fields, filter = "") { let all = []; let lastId = ""; let hasMore = true; while (hasMore) { const query = `{ ${entity}(first: 1000, where: { id_gt: "${lastId}" ${filter} }, orderBy: id, orderDirection: asc) { id ${fields} } }`; const data = await querySubgraph(query); const batch = data ? data[entity] : []; if (batch && batch.length > 0) { all = all.concat(batch); lastId = batch[batch.length - 1].id; } else { hasMore = false; } } return all; }
+        async function fetchEthToUsdRate() { try { const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'); const data = await response.json(); ethToUsdRate = data.ethereum.usd; } catch (error) { console.error('Could not fetch ETH to USD rate:', error); ethToUsdRate = 3500; } }
+
+        const formatUsd = (ethValue) => { if (!ethToUsdRate || !ethValue) return ''; const usd = parseFloat(ethValue) * ethToUsdRate; return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
+        
+        async function loadAllTimeStats() {
+            const [globalData, allItems, allUsers] = await Promise.all([ querySubgraph(`{ globalStats(id: "1") { totalVolumeETH totalTrades } }`), fetchAllEntities("items", "totalItemsSold"), fetchAllEntities("users", "id") ]);
+            if (globalData && globalData.globalStats) {
+                const volEth = parseFloat(globalData.globalStats.totalVolumeETH);
+                const totalTrades = parseInt(globalData.globalStats.totalTrades);
+                document.getElementById('allTimeVolumeEth').innerHTML = `${volEth.toFixed(2)}<span class="stat-unit">ETH</span>`;
+                document.getElementById('allTimeVolumeUsd').textContent = formatUsd(volEth);
+                document.getElementById('allTimeTrades').textContent = totalTrades.toLocaleString();
+                authoritativeAllTimeTrades = totalTrades;
+            }
+            if (allItems) {
+                const totalItems = allItems.reduce((sum, i) => sum + BigInt(i.totalItemsSold), 0n);
+                document.getElementById('allTimeItemsSold').textContent = totalItems.toLocaleString();
+                authoritativeAllTimeItemsSold = totalItems;
+            }
+            if (allUsers) document.getElementById('allTimeUniqueBuyers').textContent = allUsers.length.toLocaleString();
+        }
+        
+        async function loadItemDetails() { try { const response = await fetch('https://gigaverse.io/api/offchain/gameitems'); const data = await response.json(); if (data && data.entities) { data.entities.forEach(item => { itemDetails[item.ID_CID] = { name: item.NAME_CID, image: item.IMG_URL_CID || item.ICON_URL_CID }; }); } } catch (error) { console.error('Failed to load item details:', error); } }
+
+        const formatUTCHour = (ts) => { const d = new Date(ts * 1000); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; };
+        const formatUTCDate = (ts) => { const d = new Date(ts * 1000); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}`; };
+        const formatUTCDateTime = (ts) => `${formatUTCDate(ts)} ${formatUTCHour(ts)}`;
+        const getHourlyBucket = (ts, anchor) => { const offset = anchor % 3600; return Math.floor((ts - offset) / 3600) * 3600 + offset; };
+
+        function process24hData(trades, anchorTimestamp) {
+            document.getElementById('loadingIndicator24h').style.display = 'none';
+            let vol = 0, items = 0; const byHour = new Map(), buyers = new Set();
+            const firstBucket = getHourlyBucket(anchorTimestamp - 86400, anchorTimestamp);
+            for (let i = 0; i < 25; i++) { const bTs = firstBucket + (i * 3600); if (bTs <= anchorTimestamp) byHour.set(bTs, { volume: 0, trades: 0 }); }
+            for (const trade of trades) { vol += parseFloat(trade.totalValueETH); items += parseInt(trade.amount); buyers.add(trade.transferredTo.id); const bucket = getHourlyBucket(parseInt(trade.timestamp), anchorTimestamp); if (byHour.has(bucket)) { const c = byHour.get(bucket); c.volume += parseFloat(trade.totalValueETH); c.trades += 1; } }
+            document.getElementById('totalVolume24hEth').innerHTML = `${vol.toFixed(4)}<span class="stat-unit">ETH</span>`;
+            document.getElementById('totalVolume24hUsd').textContent = formatUsd(vol);
+            document.getElementById('totalTrades24h').textContent = trades.length.toLocaleString();
+            document.getElementById('totalItemsSold24h').textContent = items.toLocaleString();
+            document.getElementById('uniqueBuyers24h').textContent = buyers.size.toLocaleString();
+            const sorted = Array.from(byHour.entries()).sort((a, b) => a[0] - b[0]);
+            const labels = sorted.map(([ts]) => formatUTCHour(ts)), fullLabels = sorted.map(([ts]) => `${formatUTCDate(ts)} ${formatUTCHour(ts)}`);
+            if (hourlyChart) { hourlyChart.options.plugins.tooltip.customUTCLabels = fullLabels; hourlyChart.data.labels = labels; hourlyChart.data.datasets[0].data = sorted.map(([, d]) => d.volume); hourlyChart.data.datasets[1].data = sorted.map(([, d]) => d.trades); hourlyChart.update(); }
+        }
+
+        async function loadAndDisplayLatestTrades() {
+            const latest = await querySubgraph(`{ transfers(first: 50, orderBy: timestamp, orderDirection: desc, where: {isPurchase: true}) { id, timestamp, amount, pricePerItemETH, totalValueETH, transferredTo {id}, txHash, item { id } } }`);
+            const tableBody = document.getElementById('latestTradesBody');
+            if (latest && latest.transfers) {
+                const groupedByTx = new Map();
+                for (const t of latest.transfers) { if (!groupedByTx.has(t.txHash)) groupedByTx.set(t.txHash, []); groupedByTx.get(t.txHash).push(t); }
+                const finalTradeList = [];
+                for (const [txHash, trades] of groupedByTx.entries()) {
+                    const firstPrice = trades[0].pricePerItemETH;
+                    const allSamePrice = trades.every(t => t.pricePerItemETH === firstPrice);
+                    if (allSamePrice && trades.length > 1) { const totalAmount = trades.reduce((sum, t) => sum + parseInt(t.amount), 0); const totalValue = trades.reduce((sum, t) => sum + parseFloat(t.totalValueETH), 0); const baseTrade = trades[0]; finalTradeList.push({ ...baseTrade, amount: totalAmount, totalValueETH: totalValue.toString(), transferCount: trades.length, isGrouped: true }); } else { finalTradeList.push(...trades.map(t => ({ ...t, transferCount: 1, isGrouped: false }))); }
+                }
+                finalTradeList.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
+                const currentTradeIds = new Set(finalTradeList.map(t => t.id));
+                const newTradeIds = lastKnownTradeIds.size > 0 ? new Set([...currentTradeIds].filter(id => !lastKnownTradeIds.has(id))) : new Set();
+                tableBody.innerHTML = finalTradeList.slice(0, 30).map(t => {
+                    const item = itemDetails[t.item.id] || { name: `Item ${t.item.id.slice(0, 4)}`, image: '' };
+                    const isNew = newTradeIds.has(t.id);
+                    const priceEth = parseFloat(t.pricePerItemETH), totalEth = parseFloat(t.totalValueETH);
+                    const amountTitle = t.isGrouped ? `${t.transferCount} transfers combined` : '';
+                    return `<tr class="${isNew ? 'new-trade' : ''}"><td><img src="${item.image}" class="trade-item-icon" alt=""><span class="trade-item-name">${item.name}</span></td><td title="${amountTitle}">${t.amount}</td><td>${priceEth.toFixed(4)}<br><span class="sub-value">${formatUsd(priceEth)}</span></td><td>${totalEth.toFixed(4)}<br><span class="sub-value">${formatUsd(totalEth)}</span></td><td class="trade-buyer"><a href="#" title="${t.transferredTo.id}">${t.transferredTo.id.slice(0, 6)}...</a></td><td class="trade-tx"><a href="#" title="${t.txHash}">${t.txHash.slice(0, 6)}...</a></td><td>${formatUTCDateTime(t.timestamp)}</td></tr>`;
+                }).join('');
+                lastKnownTradeIds = currentTradeIds;
+            }
+        }
+
+        async function run24hDataCycle() { const anchor = Math.floor(Date.now() / 1000); const trades = await fetchAllEntities("transfers", "timestamp totalValueETH amount transferredTo { id }", `, timestamp_gte: ${anchor - 86400}, isPurchase: true`); process24hData(trades, anchor); }
+        
+        async function loadAndProcessHistoricalData() {
+            const allDailyData = await fetchAllEntities("itemDayDatas", "dayStartTimestamp volumeETH volumeItems tradesCount");
+            if (!allDailyData || allDailyData.length === 0) { ['Lifetime', 'Daily', 'AvgPrice'].forEach(id => document.getElementById(`loadingIndicator${id}`).textContent = "No data."); return; }
+            const dailyTotals = new Map();
+            for (const day of allDailyData) { const ts = parseInt(day.dayStartTimestamp); const c = dailyTotals.get(ts) || { volume: 0, items: 0n, trades: 0n }; c.volume += parseFloat(day.volumeETH); c.items += BigInt(day.volumeItems); c.trades += BigInt(day.tradesCount); dailyTotals.set(ts, c); }
+            const sorted = Array.from(dailyTotals.entries()).sort((a, b) => a[0] - b[0]);
+            processHistoricalCharts(sorted, authoritativeAllTimeTrades, authoritativeAllTimeItemsSold);
+        }
+        
+        function processHistoricalCharts(dailyData, authoritativeTotalTrades, authoritativeTotalItems) {
+            ['Lifetime', 'Daily', 'AvgPrice'].forEach(id => document.getElementById(`loadingIndicator${id}`).style.display = 'none');
+            
+            let cumVol = 0, cumItems = 0n, cumTrades = 0n;
+            historicalLabels = dailyData.map(([ts]) => formatUTCDate(ts));
+            
+            let cumVolData = [], cumItemsData = [], cumTradesData = [];
+            dailyAvgItemPriceData = []; cumulativeAvgItemPriceData = [];
+            dailyAvgTradePriceData = []; cumulativeAvgTradePriceData = [];
+
+            for (const [, daily] of dailyData) {
+                cumVol += daily.volume; cumItems += daily.items; cumTrades += daily.trades;
+                cumVolData.push(cumVol);
+                cumItemsData.push(Number(cumItems));
+                cumTradesData.push(Number(cumTrades));
+                
+                const dailyItemsNum = Number(daily.items);
+                const dailyTradesNum = Number(daily.trades);
+                dailyAvgItemPriceData.push(dailyItemsNum === 0 ? 0 : daily.volume / dailyItemsNum);
+                dailyAvgTradePriceData.push(dailyTradesNum === 0 ? 0 : daily.volume / dailyTradesNum);
+            }
+
+            const calculatedTotalTrades = cumTradesData.length > 0 ? cumTradesData[cumTradesData.length - 1] : 0;
+            if (authoritativeTotalTrades > 0 && calculatedTotalTrades > 0 && calculatedTotalTrades !== authoritativeTotalTrades) {
+                const tradesScalingFactor = authoritativeTotalTrades / calculatedTotalTrades;
+                cumTradesData = cumTradesData.map(val => Math.round(val * tradesScalingFactor));
+            }
+
+            const calculatedTotalItems = cumItemsData.length > 0 ? cumItemsData[cumItemsData.length - 1] : 0;
+            const authoritativeTotalItemsNum = Number(authoritativeTotalItems);
+            if (authoritativeTotalItemsNum > 0 && calculatedTotalItems > 0 && calculatedTotalItems !== authoritativeTotalItemsNum) {
+                const itemsScalingFactor = authoritativeTotalItemsNum / calculatedTotalItems;
+                cumItemsData = cumItemsData.map(val => Math.round(val * itemsScalingFactor));
+            }
+            
+            for (let i = 0; i < dailyData.length; i++) {
+                const currentCumVol = cumVolData[i];
+                const currentCumItems = cumItemsData[i];
+                const currentCumTrades = cumTradesData[i];
+                cumulativeAvgItemPriceData.push(currentCumItems === 0 ? 0 : currentCumVol / currentCumItems);
+                cumulativeAvgTradePriceData.push(currentCumTrades === 0 ? 0 : currentCumVol / currentCumTrades);
+            }
+
+            if (lifetimeChart) { lifetimeChart.data.labels = historicalLabels; lifetimeChart.data.datasets[0].data = cumVolData; lifetimeChart.data.datasets[1].data = cumItemsData; lifetimeChart.data.datasets[2].data = cumTradesData; lifetimeChart.update(); }
+            if (dailyChart) { dailyChart.data.labels = historicalLabels; dailyChart.data.datasets[0].data = dailyData.map(([, d]) => d.volume); dailyChart.data.datasets[1].data = dailyData.map(([, d]) => Number(d.trades)); dailyChart.update(); }
+            updateAvgPriceChart();
+        }
+        
+        function updateAvgPriceChart() {
+            if (!avgPriceChart || !historicalLabels) return;
+            
+            const titleEl = document.getElementById('avgPriceChartTitle');
+            
+            if (avgPriceMode === 'cumulative') {
+                titleEl.textContent = 'Cumulative Average Prices';
+                avgPriceChart.data.datasets[0].data = cumulativeAvgItemPriceData;
+                avgPriceChart.data.datasets[1].data = cumulativeAvgTradePriceData;
+            } else { // daily
+                titleEl.textContent = 'Daily Average Prices';
+                avgPriceChart.data.datasets[0].data = dailyAvgItemPriceData;
+                avgPriceChart.data.datasets[1].data = dailyAvgTradePriceData;
+            }
+            
+            avgPriceChart.data.labels = historicalLabels;
+            avgPriceChart.update();
+        }
+
+        function initChart(id, config) { const ctx = document.getElementById(id); if (ctx) return new Chart(ctx, config); }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            hourlyChart = initChart('hourlyChart', { data: { labels: [], datasets: [ { type: 'line', label: 'Volume (ETH)', data: [], borderColor: CHART_COLORS.warning, yAxisID: 'yVolume', tension: 0.3, pointRadius: 1 }, { type: 'bar', label: 'Trades', data: [], backgroundColor: CHART_COLORS.warningAltTransparent, yAxisID: 'yTrades' }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { type: 'category', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.fg } }, yVolume: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: CHART_COLORS.warning, font: { size: 9 } }, title: { display: false } }, yTrades: { type: 'linear', position: 'left', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.warningAlt, beginAtZero: true, font: { size: 9 } }, title: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 20 } }, tooltip: { backgroundColor: 'oklch(21% .006 285.885 / .8)', customUTCLabels: [], callbacks: { title: function(c) { const i = c[0].dataIndex; return this.chart.options.plugins.tooltip.customUTCLabels[i] ? `${this.chart.options.plugins.tooltip.customUTCLabels[i]} UTC` : ''; } } } } } });
+            lifetimeChart = initChart('lifetimeChart', { data: { labels: [], datasets: [ { type: 'line', label: 'Volume (ETH)', data: [], borderColor: CHART_COLORS.warning, yAxisID: 'yVolume', tension: 0.1, pointRadius: 0, borderWidth: 2 }, { type: 'line', label: 'Items', data: [], borderColor: CHART_COLORS.success, yAxisID: 'yCount', tension: 0.1, pointRadius: 0, borderWidth: 2 }, { type: 'line', label: 'Trades', data: [], borderColor: CHART_COLORS.warningAlt, yAxisID: 'yCount', tension: 0.1, pointRadius: 0, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { type: 'category', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.fg, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } }, yVolume: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: CHART_COLORS.warning, font: { size: 9 } }, title: { display: false } }, yCount: { type: 'linear', position: 'left', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.fg, beginAtZero: true, font: { size: 9 } }, title: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 20 } }, tooltip: { backgroundColor: 'oklch(21% .006 285.885 / .8)' } } } });
+            dailyChart = initChart('dailyChart', { data: { labels: [], datasets: [ { type: 'line', label: 'Volume (ETH)', data: [], borderColor: CHART_COLORS.warning, yAxisID: 'yVolume', tension: 0.1, pointRadius: 1, borderWidth: 2 }, { type: 'bar', label: 'Trades', data: [], backgroundColor: CHART_COLORS.warningAltTransparent, yAxisID: 'yCount' }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { type: 'category', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.fg, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } }, yVolume: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: CHART_COLORS.warning, font: { size: 9 } }, title: { display: false } }, yCount: { type: 'linear', position: 'left', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.warningAlt, beginAtZero: true, font: { size: 9 } }, title: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 20 } }, tooltip: { backgroundColor: 'oklch(21% .006 285.885 / .8)' } } } });
+            
+            avgPriceChart = initChart('avgPriceChart', { 
+                data: { 
+                    labels: [], 
+                    datasets: [ 
+                        { type: 'line', label: 'Avg Item Price (ETH)', data: [], borderColor: CHART_COLORS.warning, tension: 0.1, pointRadius: 1, borderWidth: 2 },
+                        { type: 'line', label: 'Avg Trade Price (ETH)', data: [], borderColor: CHART_COLORS.warningAlt, tension: 0.1, pointRadius: 1, borderWidth: 2 }
+                    ] 
+                }, 
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { type: 'category', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.fg, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } }, y: { type: 'linear', position: 'right', grid: { color: CHART_COLORS.border }, ticks: { color: CHART_COLORS.warning, font: { size: 9 } }, title: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 20 } }, tooltip: { backgroundColor: 'oklch(21% .006 285.885 / .8)' } } } 
+            });
+            
+            const modeSwitcher = document.getElementById('avgPriceModeSwitcher');
+            modeSwitcher.addEventListener('click', (e) => { 
+                if (e.target.tagName === 'BUTTON') { 
+                    avgPriceMode = e.target.dataset.mode; 
+                    modeSwitcher.querySelectorAll('button').forEach(btn => btn.classList.remove('active')); 
+                    e.target.classList.add('active'); 
+                    updateAvgPriceChart(); 
+                } 
+            });
+            
+            await fetchEthToUsdRate();
+            await loadItemDetails();
+            await loadAllTimeStats();
+            
+            run24hDataCycle();
+            loadAndProcessHistoricalData();
+            loadAndDisplayLatestTrades();
+
+            setInterval(run24hDataCycle, 300000);
+            setInterval(loadAndDisplayLatestTrades, 60000);
+        });
+    </script>
+</body>
+</html>
